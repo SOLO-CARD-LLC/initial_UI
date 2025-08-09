@@ -198,10 +198,10 @@
         
         <div class="location-section">
             <div class="location-status" id="locationStatus">
-                Ready to detect your location
+                Ready to choose the best card
             </div>
             <button class="location-button" id="locationButton" onclick="getLocation()">
-                Get My Location
+                Choose the best card
             </button>
             <div id="locationResult"></div>
         </div>
@@ -247,7 +247,7 @@
             isGettingLocation = loading;
         }
 
-        function displayPlaceInfo(placeData, coordinates) {
+        function displayPlaceInfo(placeData, suggestion) {
             const resultElement = document.getElementById('locationResult');
             
             if (!placeData || !placeData.ResultItems || placeData.ResultItems.length === 0) {
