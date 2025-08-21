@@ -159,6 +159,16 @@
             background: rgba(79, 70, 229, 0.3);
             padding: 4px 8px;
             border-radius: 6px;
+            font-size: 0.55rem;
+            margin: 2px;
+            border: 1px solid rgba(79, 70, 229, 0.5);
+        }
+
+        .card-percentage {
+            display: inline-block;
+            background: rgba(79, 70, 229, 0.3);
+            padding: 4px 8px;
+            border-radius: 6px;
             font-size: 0.75rem;
             margin: 2px;
             border: 1px solid rgba(79, 70, 229, 0.5);
@@ -267,7 +277,7 @@
             
             let categoriesHtml = '';
             categories.forEach(category => {
-                categoriesHtml += `<span class="place-category">${category.Name || category.LocalizedName || 'Unknown'}</span>`;
+                categoriesHtml += `<span class="place-category">${category.LocalizedName}</span>`;
             });
 
             const placeName = place.PlaceName || address.Label || 'Unknown Location';
@@ -280,7 +290,8 @@
                 <div class="place-info">
                     <div class="place-name">${placeName}</div>
                     ${categoriesHtml}
-                    <div class="card-suggestion">${suggestion.card}</div>
+                    <div class="card-suggestion">${suggestion.company} ${suggestion.card}</div>
+                    <span class="card-percentage">${suggestion.percentage}</span>
                 </div>
             `;
         }
@@ -366,7 +377,6 @@
                     body: JSON.stringify({
                         Categories: categoriesList,
                         MaxResults: 1,
-                        Language: 'en'
                     })
                 });
 
