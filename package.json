@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "expo-linear-gradient": "^15.0.6",
+    "expo-location": "^19.0.6"
+  }
+}
