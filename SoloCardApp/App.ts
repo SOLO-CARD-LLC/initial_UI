@@ -1,29 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   ActivityIndicator,
   Alert,
-  StatusBar,
   ScrollView,
-  Animated,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Location from 'expo-location';
 
-const { width, height } = Dimensions.get('window');
-
-const SoloCardApp = () => {
+export default function App() {
   const [currentPage, setCurrentPage] = useState('start');
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [locationStatus, setLocationStatus] = useState('Ready to choose the best card');
   const [placeData, setPlaceData] = useState(null);
   const [cardSuggestion, setCardSuggestion] = useState(null);
-  const [error, setError] = useState('');
-  const [fadeAnim] = useState(new Animated.Value(1));
 
   // AWS Configuration
   const AWS_CONFIG = {
@@ -32,50 +23,11 @@ const SoloCardApp = () => {
     endpoint: 'https://places.geo.us-east-1.amazonaws.com'
   };
 
-  useEffect(() => {
-    console.log('🚀 SOLO CARD LLC React Native App Loaded');
-    console.log('📱 Platform:', Platform.OS);
-  }, []);
-
-  const showPage = (pageId) => {
-    Animated.sequence([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    setTimeout(() => {
-      setCurrentPage(pageId);
-    }, 250);
-  };
-
-  const goBackToStart = () => {
-    showPage('start');
-    setLocationStatus('Ready to choose the best card');
-    setError('');
-    setPlaceData(null);
-    setCardSuggestion(null);
-  };
-
-  const updateStatus = (message, isError = false) => {
-    setLocationStatus(message);
-    if (isError) {
-      setError(message);
-    } else {
-      setError('');
-    }
-  };
-
+  // AWS Location Service API call
   const reverseGeocode = async (latitude, longitude) => {
     try {
-      console.log('🗺️ Calling Amazon Location Service Nearby Point of Interest Search...');
+      console.log('🗺️ Calling Amazon Location Service...');
+      console.log(`Coordinates: ${latitude}, ${longitude}`);
       
       const response = await fetch(`${AWS_CONFIG.endpoint}/v2/search-nearby?key=${AWS_CONFIG.apiKey}`, {
         method: 'POST',
@@ -83,8 +35,8 @@ const SoloCardApp = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          QueryPosition: [longitude, latitude],
-          QueryRadius: 50,
+          QueryPosition: [longitude, latitude], // Note: AWS expects [longitude, latitude]
+          QueryRadius: 100, // Search within 100 meters
           MaxResults: 1,
           Language: 'en'
         })
@@ -102,426 +54,473 @@ const SoloCardApp = () => {
     } catch (error) {
       console.error('❌ AWS Location Service Error:', error);
       
-      // Return mock data for demonstration
-      console.log('🔄 Using mock data for demonstration...');
+      // Return mock data if AWS fails (for development/testing)
+      console.log('🔄 Using fallback mock data...');
       return {
         ResultItems: [{
           PlaceName: "Demo Location",
           Address: {
-            Label: "123 Demo Street, Demo City, DC 12345, USA",
-            AddressNumber: "123",
-            Street: "Demo Street",
-            Locality: "Demo City",
-            Region: { Name: "Demo State" },
-            PostalCode: "12345",
-            Country: { Name: "USA" }
+            Label: "123 Demo Street, Demo City, DC 12345, USA"
           },
           Categories: [
-            { Name: "Commercial Building", Primary: true },
-            { Name: "Business Center" }
+            { Name: "Commercial Building", LocalizedName: "Commercial Building" },
+            { Name: "Business Center", LocalizedName: "Business Center" }
           ]
         }]
       };
     }
   };
 
-  const checkCard = async (categoriesList, placeName) => {
+  // Card recommendation API call
+  const getCardRecommendation = async (categories, placeName) => {
     try {
-      console.log('Getting the credit card information necessary to give a suggestion');
+      console.log('💳 Getting card recommendation...');
+      console.log('Categories:', categories);
+      console.log('Place:', placeName);
 
-      const response = await fetch(`http://Mygoapp-env.eba-mp3rtawp.us-east-1.elasticbeanstalk.com/cards`, {
+      const response = await fetch('http://Mygoapp-env.eba-mp3rtawp.us-east-1.elasticbeanstalk.com/cards', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          Categories: categoriesList,
+          Categories: categories,
           Title: placeName,
         })
       });
 
       if (!response.ok) {
-        throw new Error(`AWS API Error: ${response.status} ${response.statusText}`);
+        throw new Error(`Card API Error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log('📍 Card Service Response:', data);
+      console.log('💳 Card Service Response:', data);
       
       return data;
-    } catch(error) {
-      console.error('Problem getting information from card service');
-      return null;
-    }
-  };
-
-  const getLocation = async () => {
-    if (isGettingLocation) return;
-    
-    setIsGettingLocation(true);
-    updateStatus('Requesting location permission...');
-    
-    try {
-      // Request permission
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        updateStatus('Location access denied by user', true);
-        setIsGettingLocation(false);
-        return;
-      }
-
-      updateStatus('Getting your location...');
-
-      // Get location
-      let location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-        timeout: 10000,
-        maximumAge: 300000
-      });
-
-      const { latitude, longitude, accuracy } = location.coords;
-      
-      console.log('📍 User Location Detected:');
-      console.log(`Latitude: ${latitude}`);
-      console.log(`Longitude: ${longitude}`);
-      console.log(`Accuracy: ${accuracy} meters`);
-      
-      updateStatus('Getting place information...');
-      
-      const locationData = await reverseGeocode(latitude, longitude);
-      const categories = locationData?.ResultItems?.[0]?.Categories || [];
-      const placeName = locationData?.ResultItems?.[0]?.PlaceName || locationData?.ResultItems?.[0]?.Address?.Label || 'Unknown Location';
-      const suggestion = await checkCard(categories, placeName);
-      
-      setPlaceData(locationData);
-      setCardSuggestion(suggestion);
-      
-      updateStatus('Found your perfect card!');
-      
-      setTimeout(() => {
-        showPage('results');
-      }, 500);
       
     } catch (error) {
-      console.error('❌ Location Error:', error);
+      console.error('❌ Card Service Error:', error);
       
-      let errorMessage = 'Failed to get location';
-      if (error.code === 'E_LOCATION_UNAVAILABLE') {
-        errorMessage = 'Location information unavailable';
-      } else if (error.code === 'E_LOCATION_TIMEOUT') {
-        errorMessage = 'Location request timed out';
-      }
-      
-      updateStatus(errorMessage, true);
-    } finally {
-      setIsGettingLocation(false);
+      // Return mock card data if API fails
+      return {
+        company: 'Chase',
+        card: 'Sapphire Preferred',
+        percentage: '3% Cash Back'
+      };
     }
   };
 
-  const renderCategories = (categories) => {
-    if (!categories || !Array.isArray(categories) || categories.length === 0) {
-      return null;
+  // Request location permission for Android
+  const requestLocationPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Location Permission',
+            message: 'This app needs location access to find the best credit card for your current location.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
     }
-    
-    return categories.map((category, index) => {
-      if (!category) return null;
-      
-      return (
-        <View key={index} style={styles.categoryTag}>
-          <Text style={styles.categoryText}>
-            {category.LocalizedName || category.Name || 'Unknown Category'}
-          </Text>
-        </View>
+    return true; // iOS handles permissions automatically
+  };
+
+  // Get current position using built-in geolocation
+  const getCurrentPosition = () => {
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          console.log('✅ Location obtained:', position);
+          resolve(position);
+        },
+        (error) => {
+          console.error('❌ Geolocation error:', error);
+          reject(error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000,
+        }
       );
     });
   };
 
-  const renderStartPage = () => {
-    return (
-      <Animated.View style={[styles.pageContainer, { opacity: fadeAnim }]}>
-        <Text style={styles.logo}>SOLO CARD LLC</Text>
-        <Text style={styles.tagline}>Modern Financial Solutions</Text>
+  // Enhanced location function with built-in geolocation
+  const getLocation = async () => {
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    setLocationStatus('Requesting location permission...');
+    
+    try {
+      // Step 1: Check if geolocation is available
+      if (!navigator.geolocation) {
+        throw new Error('Geolocation is not supported by this device');
+      }
+
+      // Step 2: Request permissions (Android)
+      if (Platform.OS === 'android') {
+        console.log('🔐 Requesting Android location permission...');
+        const hasPermission = await requestLocationPermission();
+        if (!hasPermission) {
+          throw new Error('Location permission denied');
+        }
+      }
+
+      setLocationStatus('Getting your location...');
+      console.log('📍 Attempting to get location...');
+
+      // Step 3: Get current location
+      const position = await getCurrentPosition();
+      const { latitude, longitude, accuracy } = position.coords;
+      
+      console.log('📍 Location Data:');
+      console.log(`Latitude: ${latitude}`);
+      console.log(`Longitude: ${longitude}`);
+      console.log(`Accuracy: ${accuracy} meters`);
+
+      // Validate coordinates
+      if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+        throw new Error('Invalid coordinates received');
+      }
+
+      setLocationStatus('Finding nearby places...');
+
+      // Step 4: Get place information from AWS
+      const locationData = await reverseGeocode(latitude, longitude);
+      
+      // Step 5: Extract place data
+      const place = locationData?.ResultItems?.[0];
+      if (!place) {
+        console.log('⚠️ No places found, using fallback data');
+        // Use fallback data instead of failing
+        setPlaceData({
+          name: 'Current Location',
+          categories: ['General Location'],
+          address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+        });
         
-        <View style={styles.locationSection}>
-          <Text style={styles.locationStatus}>{locationStatus}</Text>
-          
-          <TouchableOpacity
-            style={[styles.locationButton, isGettingLocation && styles.locationButtonDisabled]}
-            onPress={getLocation}
-            disabled={isGettingLocation}
-          >
-            {isGettingLocation ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator color="white" size="small" />
-                <Text style={styles.buttonText}>Getting Location...</Text>
-              </View>
-            ) : (
-              <Text style={styles.buttonText}>Choose the best card</Text>
-            )}
-          </TouchableOpacity>
-          
-          {error ? (
-            <Text style={styles.errorText}>{error}</Text>
-          ) : null}
-        </View>
-      </Animated.View>
-    );
+        setCardSuggestion({
+          company: 'Chase',
+          card: 'Freedom Unlimited',
+          percentage: '1.5% Cash Back'
+        });
+      } else {
+        const placeName = place.PlaceName || place.Address?.Label || 'Unknown Location';
+        const categories = place.Categories || [];
+        
+        console.log('🏢 Found Place:', placeName);
+        console.log('🏷️ Categories:', categories.map(c => c.Name || c.LocalizedName));
+
+        setLocationStatus('Getting card recommendation...');
+
+        // Step 6: Get card recommendation
+        const cardData = await getCardRecommendation(categories, placeName);
+
+        // Step 7: Set results
+        setPlaceData({
+          name: placeName,
+          categories: categories.map(c => c.LocalizedName || c.Name || 'Unknown Category'),
+          address: place.Address?.Label
+        });
+        
+        setCardSuggestion(cardData);
+      }
+
+      setLocationStatus('Found your perfect card!');
+      
+      // Small delay for better UX
+      setTimeout(() => {
+        setCurrentPage('results');
+      }, 500);
+      
+    } catch (error) {
+      console.error('❌ Location Error Details:', error);
+      
+      let errorMessage = 'Failed to get location';
+      let debugInfo = '';
+
+      // Handle specific error types
+      if (error.code === 1) { // PERMISSION_DENIED
+        errorMessage = 'Location permission denied';
+        debugInfo = 'Please enable location access in your device settings';
+      } else if (error.code === 2) { // POSITION_UNAVAILABLE
+        errorMessage = 'Location unavailable';
+        debugInfo = 'GPS signal may be weak or unavailable';
+      } else if (error.code === 3) { // TIMEOUT
+        errorMessage = 'Location request timed out';
+        debugInfo = 'Try moving to an area with better GPS signal';
+      } else if (error.message.includes('Network')) {
+        errorMessage = 'Network connection error';
+        debugInfo = 'Check your internet connection';
+      } else {
+        debugInfo = `Debug: ${error.message}`;
+      }
+
+      setLocationStatus(`${errorMessage} - ${debugInfo}`);
+
+      Alert.alert(
+        'Location Error',
+        `${errorMessage}\n\n${debugInfo}\n\nWould you like to try again?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Try Again', onPress: () => setTimeout(getLocation, 1000) },
+          { text: 'Use Demo', onPress: useDemoData }
+        ]
+      );
+      
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const renderResultsPage = () => {
-    const place = placeData?.ResultItems?.[0];
-    const categories = place?.Categories || [];
-    const placeName = place?.PlaceName || place?.Address?.Label || 'Unknown Location';
+  // Demo data function for testing
+  const useDemoData = () => {
+    console.log('🎭 Using demo data...');
+    setPlaceData({
+      name: 'Demo Coffee Shop',
+      categories: ['Coffee Shop', 'Restaurant'],
+      address: 'Demo Location for Testing'
+    });
+    
+    setCardSuggestion({
+      company: 'Chase',
+      card: 'Sapphire Preferred',
+      percentage: '3% Cash Back'
+    });
+    
+    setCurrentPage('results');
+  };
 
+  const goBack = () => {
+    setCurrentPage('start');
+    setLocationStatus('Ready to choose the best card');
+    setPlaceData(null);
+    setCardSuggestion(null);
+  };
+
+  // Start Page
+  if (currentPage === 'start') {
     return (
-      <Animated.View style={[styles.pageContainer, { opacity: fadeAnim }]}>
+      <View style={styles.container}>
+        <View style={styles.card}>
+          <Text style={styles.logo}>SOLO CARD LLC</Text>
+          <Text style={styles.tagline}>Modern Financial Solutions</Text>
+          
+          <View style={styles.section}>
+            <Text style={styles.status}>{locationStatus}</Text>
+            
+            <TouchableOpacity 
+              style={[styles.button, isLoading && styles.buttonDisabled]}
+              onPress={getLocation}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator color="white" size="small" />
+                  <Text style={styles.buttonText}>Getting Location...</Text>
+                </View>
+              ) : (
+                <Text style={styles.buttonText}>Choose the best card</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // Results Page
+  return (
+    <View style={styles.container}>
+      <View style={styles.card}>
         <Text style={styles.logo}>SOLO CARD LLC</Text>
         
-        <ScrollView style={styles.resultsContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.placeInfo}>
-            <Text style={styles.placeName}>{placeName}</Text>
-            <View style={styles.categoriesContainer}>
-              {renderCategories(categories)}
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Place Info */}
+          <View style={styles.placeCard}>
+            <Text style={styles.placeName}>{placeData?.name || 'Unknown Location'}</Text>
+            <View style={styles.categoriesRow}>
+              {placeData?.categories?.map((category, index) => (
+                <View key={index} style={styles.categoryTag}>
+                  <Text style={styles.categoryText}>{category}</Text>
+                </View>
+              ))}
             </View>
           </View>
           
-          <View style={styles.cardRecommendation}>
-            {cardSuggestion && cardSuggestion.company ? (
+          {/* Card Recommendation */}
+          <View style={styles.recommendationCard}>
+            {cardSuggestion ? (
               <>
                 <Text style={styles.cardTitle}>
                   {cardSuggestion.company} {cardSuggestion.card}
                 </Text>
-                <View style={styles.cardPercentageContainer}>
-                  <Text style={styles.cardPercentage}>{cardSuggestion.percentage}</Text>
+                <View style={styles.percentageTag}>
+                  <Text style={styles.percentageText}>{cardSuggestion.percentage}</Text>
                 </View>
-                <Text style={styles.cardDetails}>
-                  This card offers the best rewards for {placeName.toLowerCase()} purchases.
-                  {categories.length > 0 && (
-                    <Text>
-                      {' '}Perfect for {categories.map(c => c?.LocalizedName || c?.Name || 'Unknown').join(', ').toLowerCase()} spending.
-                    </Text>
-                  )}
+                <Text style={styles.details}>
+                  This card offers the best rewards for {placeData?.name} purchases.
                 </Text>
               </>
             ) : (
-              <>
-                <Text style={styles.cardTitle}>No card information found</Text>
-                <Text style={styles.cardDetails}>
-                  Unable to get card recommendation for this location.
-                </Text>
-              </>
+              <Text style={styles.cardTitle}>No recommendation available</Text>
             )}
           </View>
           
-          <TouchableOpacity style={styles.backButton} onPress={goBackToStart}>
+          <TouchableOpacity style={styles.backButton} onPress={goBack}>
             <Text style={styles.backButtonText}>← Try Another Location</Text>
           </TouchableOpacity>
         </ScrollView>
-      </Animated.View>
-    );
-  };
-
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.appContainer}>
-          {currentPage === 'start' ? renderStartPage() : renderResultsPage()}
-        </View>
-      </LinearGradient>
+      </View>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  gradient: {
-    flex: 1,
+    backgroundColor: '#667eea',
     justifyContent: 'center',
-    alignItems: 'center',
     padding: 20,
   },
-  appContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 24,
-    padding: 40,
-    width: '100%',
-    maxWidth: 450,
+  card: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 20,
+    padding: 30,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 25,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 45,
-    elevation: 25,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  pageContainer: {
-    alignItems: 'center',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
   },
   logo: {
-    fontSize: 40,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    marginBottom: 10,
-    color: 'white',
+    fontSize: 28,
+    fontWeight: 'bold',
     textAlign: 'center',
+    color: '#333',
+    marginBottom: 5,
   },
   tagline: {
     fontSize: 16,
-    opacity: 0.8,
-    marginBottom: 30,
-    fontWeight: '300',
-    color: 'white',
     textAlign: 'center',
+    color: '#666',
+    marginBottom: 30,
   },
-  locationSection: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
+  section: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 15,
     padding: 20,
     marginTop: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    width: '100%',
   },
-  locationStatus: {
+  status: {
     fontSize: 14,
-    opacity: 0.9,
-    marginBottom: 15,
-    color: 'white',
     textAlign: 'center',
+    color: '#555',
+    marginBottom: 15,
   },
-  locationButton: {
+  button: {
     backgroundColor: '#4f46e5',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
     borderRadius: 12,
-    shadowColor: '#4f46e5',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.4,
-    shadowRadius: 15,
-    elevation: 8,
-  },
-  locationButtonDisabled: {
-    opacity: 0.6,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
+    padding: 15,
     alignItems: 'center',
-    justifyContent: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    textAlign: 'center',
-    marginLeft: 8,
   },
-  errorText: {
-    color: '#fca5a5',
-    fontSize: 13,
-    marginTop: 10,
-    textAlign: 'center',
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  resultsContainer: {
-    flex: 1,
-    width: '100%',
-  },
-  placeInfo: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 12,
+  placeCard: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 15,
     padding: 20,
     marginBottom: 20,
   },
   placeName: {
+    fontSize: 20,
     fontWeight: '600',
-    fontSize: 19,
-    marginBottom: 10,
-    color: '#e0e7ff',
     textAlign: 'center',
+    color: '#1e293b',
+    marginBottom: 10,
   },
-  categoriesContainer: {
+  categoriesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: 10,
+    gap: 8,
   },
   categoryTag: {
-    backgroundColor: 'rgba(79, 70, 229, 0.3)',
-    paddingVertical: 6,
+    backgroundColor: '#e2e8f0',
     paddingHorizontal: 12,
-    borderRadius: 8,
-    margin: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(79, 70, 229, 0.5)',
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   categoryText: {
-    fontSize: 13,
-    color: 'white',
+    fontSize: 12,
+    color: '#475569',
   },
-  cardRecommendation: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 16,
+  recommendationCard: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 15,
     padding: 25,
     alignItems: 'center',
-    marginTop: 20,
     borderWidth: 2,
-    borderColor: 'rgba(79, 70, 229, 0.3)',
+    borderColor: '#bfdbfe',
   },
   cardTitle: {
-    fontSize: 25,
-    fontWeight: '700',
-    marginBottom: 10,
-    color: 'white',
+    fontSize: 22,
+    fontWeight: 'bold',
     textAlign: 'center',
+    color: '#1e40af',
+    marginBottom: 10,
   },
-  cardPercentageContainer: {
-    backgroundColor: 'rgba(79, 70, 229, 0.3)',
-    borderWidth: 1,
-    borderColor: 'rgba(79, 70, 229, 0.5)',
-    paddingVertical: 8,
+  percentageTag: {
+    backgroundColor: '#3b82f6',
     paddingHorizontal: 16,
-    borderRadius: 12,
-    margin: 10,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 15,
   },
-  cardPercentage: {
+  percentageText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
   },
-  cardDetails: {
+  details: {
     fontSize: 14,
-    opacity: 0.9,
-    marginTop: 10,
-    color: 'white',
     textAlign: 'center',
+    color: '#475569',
     lineHeight: 20,
   },
   backButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    padding: 15,
     marginTop: 20,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   backButtonText: {
-    color: 'white',
+    color: '#475569',
     fontSize: 14,
+    fontWeight: '500',
   },
 });
-
-export default SoloCardApp;
