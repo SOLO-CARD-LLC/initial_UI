@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SOLO CARD LLC</string>
+    <string name="title_activity_main">SOLO CARD LLC</string>
+    <string name="package_name">com.solocard.app</string>
+    <string name="custom_url_scheme">com.solocard.app</string>
+</resources>
