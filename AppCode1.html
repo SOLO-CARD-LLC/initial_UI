@@ -359,12 +359,74 @@
             isGettingLocation = loading;
         }
 
+        // function displayResults(placeData, suggestion) {
+        //     // Update place information
+        //     const placeInfoElement = document.getElementById('placeInfo');
+        //     const cardRecommendationElement = document.getElementById('cardRecommendation');
+            
+        //     if (!placeData || !placeData.ResultItems || placeData.ResultItems.length === 0) {
+        //         placeInfoElement.innerHTML = `
+        //             <div class="place-name">Location Found</div>
+        //             <div style="text-align: center; opacity: 0.8;">No specific place information available</div>
+        //         `;
+        //         // cardRecommendationElement.innerHTML = `
+        //         //     <div class="card-title">No Recommendation Available</div>
+        //         //     <div class="card-details">Unable to determine the best card for this location</div>
+        //         // `;
+        //         // showPage('resultsPage');
+        //         // return;
+        //     } else {
+        //         const place = placeData.ResultItems[0];
+        //         const categories = place.Categories || [];
+        //         const placeName = place.PlaceName || place.Address?.Label || 'Unknown Location';
+                
+        //         // Display place information with categories
+        //         let categoriesHtml = '';
+        //         categories.forEach(category => {
+        //             categoriesHtml += `<span class="place-category">${category.LocalizedName || category.Name}</span>`;
+        //         });
+
+        //         placeInfoElement.innerHTML = `
+        //             <div class="place-name">${placeName}</div>
+        //             <div style="text-align: center; margin-top: 10px;">
+        //                 ${categoriesHtml}
+        //             </div>
+        //         `;
+        //     }
+
+
+        //     // Display card recommendation using your data structure
+        //     if (suggestion && suggestion !== NaN && suggestion.company) {
+        //         cardRecommendationElement.innerHTML = `
+        //             <div class="card-title">${suggestion.company} ${suggestion.card}</div>
+        //             <div class="card-percentage">${suggestion.percentage}</div>
+        //             <div class="card-details">
+        //                 This card offers the best rewards for ${placeName.toLowerCase() || "General"} purchases.
+        //                 Perfect for ${categories.map(c => c.LocalizedName || c.Name).join(', ').toLowerCase() || "General"} spending.
+        //             </div>
+        //         `;
+        //     } else {
+        //         cardRecommendationElement.innerHTML = `
+        //             <div class="card-title">No card information found</div>
+        //             <div class="card-details">
+        //                 Unable to get card recommendation for this location.
+        //             </div>
+        //         `;
+        //     }
+
+        //     // Show the results page
+        //     showPage('resultsPage');
+        // }
+
         function displayResults(placeData, suggestion) {
-            // Update place information
             const placeInfoElement = document.getElementById('placeInfo');
             const cardRecommendationElement = document.getElementById('cardRecommendation');
             
-            if (!placeData || !placeData.ResultItems || placeData.ResultItems.length === 0) {
+            // Check if we have valid place data
+            const hasPlaceData = placeData && placeData.ResultItems && placeData.ResultItems.length > 0;
+            
+            if (!hasPlaceData && !suggestion) {
+                // No place data AND no card suggestion
                 placeInfoElement.innerHTML = `
                     <div class="place-name">Location Found</div>
                     <div style="text-align: center; opacity: 0.8;">No specific place information available</div>
@@ -377,47 +439,61 @@
                 return;
             }
 
-            const place = placeData.ResultItems[0];
-            const categories = place.Categories || [];
-            const placeName = place.PlaceName || place.Address?.Label || 'Unknown Location';
-            
-            // Display place information with categories
-            let categoriesHtml = '';
-            categories.forEach(category => {
-                categoriesHtml += `<span class="place-category">${category.LocalizedName || category.Name}</span>`;
-            });
+            // Handle place information
+            if (hasPlaceData) {
+                const place = placeData.ResultItems[0];
+                const categories = place.Categories || [];
+                const placeName = place.PlaceName || 'Unknown Location';
+                
+                let categoriesHtml = '';
+                categories.forEach(category => {
+                    categoriesHtml += `<span class="place-category">${category.LocalizedName || category.Name}</span>`;
+                });
 
-            placeInfoElement.innerHTML = `
-                <div class="place-name">${placeName}</div>
-                <div style="text-align: center; margin-top: 10px;">
-                    ${categoriesHtml}
-                </div>
-            `;
-
-            // Display card recommendation using your data structure
-            if (suggestion && suggestion !== NaN && suggestion.company) {
-                cardRecommendationElement.innerHTML = `
-                    <div class="card-title">${suggestion.company} ${suggestion.card}</div>
-                    <div class="card-percentage">${suggestion.percentage}</div>
-                    <div class="card-details">
-                        This card offers the best rewards for ${placeName.toLowerCase()} purchases.
-                        Perfect for ${categories.map(c => c.LocalizedName || c.Name).join(', ').toLowerCase()} spending.
+                placeInfoElement.innerHTML = `
+                    <div class="place-name">${placeName}</div>
+                    <div style="text-align: center; margin-top: 10px;">
+                        ${categoriesHtml}
                     </div>
                 `;
+
+                // Handle card recommendation with place details
+                if (suggestion && suggestion.company) {
+                    cardRecommendationElement.innerHTML = `
+                        <div class="card-title">${suggestion.company} ${suggestion.card}</div>
+                        <div class="card-percentage">${suggestion.percentage}%</div>
+                        <div class="card-details">
+                            This card offers the best rewards for ${placeName.toLowerCase()} purchases.
+                            Perfect for ${categories.map(c => c.LocalizedName || c.Name).join(', ').toLowerCase()} spending.
+                        </div>
+                    `;
+                } else {
+                    cardRecommendationElement.innerHTML = `
+                        <div class="card-title">No card information found</div>
+                    `;
+                }
             } else {
-                cardRecommendationElement.innerHTML = `
-                    <div class="card-title">No card information found</div>
-                    <div class="card-details">
-                        Unable to get card recommendation for this location.
-                    </div>
+                // No place data but we have card suggestion
+                placeInfoElement.innerHTML = `
+                    <div class="place-name">No particular location found</div>
                 `;
+                
+                if (suggestion && suggestion.company) {
+                    cardRecommendationElement.innerHTML = `
+                        <div class="card-title">${suggestion.company} ${suggestion.card}</div>
+                        <div class="card-percentage">${suggestion.percentage}%</div>
+                    `;
+                } else {
+                    cardRecommendationElement.innerHTML = `
+                        <div class="card-title">No card information found</div>
+                    `;
+                }
             }
-
-            // Show the results page
+            
             showPage('resultsPage');
         }
 
-        async function reverseGeocode(latitude, longitude) {
+        async function reverseGeocode(latitude, longitude, accuracy) {
             try {
                 console.log('🗺️ Calling Amazon Location Service Nearby Point of Interest Search...');
                 
@@ -429,7 +505,7 @@
                     },
                     body: JSON.stringify({
                         QueryPosition: [longitude, latitude],
-                        QueryRadius: 50,  // Search within 50 meters
+                        QueryRadius: accuracy + 50,  // Search within 50 meters
                         MaxResults: 1,    
                         Language: 'en'
                     })
@@ -542,7 +618,7 @@
                 
                 updateStatus('Getting place information...');
                 
-                const placeData = await reverseGeocode(latitude,longitude);
+                const placeData = await reverseGeocode(latitude,longitude, accuracy);
                 // const categories = placeData?.ResultItems?.[0]?.Categories || [];
                 // const title = 
                 const categories = placeData.Categories || [];           // Empty array if null
@@ -558,6 +634,8 @@
                 }
                 
                 updateStatus('Found your perfect card!', false, true);
+
+                console.log('the received place data is', placeData)
                 
                 // Wait a moment then show results
                 setTimeout(() => {

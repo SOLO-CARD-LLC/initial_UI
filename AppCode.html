@@ -422,7 +422,7 @@
                 console.log('🗺️ Calling Amazon Location Service Nearby Point of Interest Search...');
                 
                 // Note: This is a simplified example. In production, you should use proper AWS authentication
-                const response = await fetch(`${AWS_CONFIG.endpoint}/v2/search/nearby?key=${AWS_CONFIG.apiKey}`, {
+                const response = await fetch(`${AWS_CONFIG.endpoint}/v2/search-nearby?key=${AWS_CONFIG.apiKey}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -564,6 +564,7 @@
                 
                 const placeData = await reverseGeocode(latitude, longitude);
                 const categories = placeData?.ResultItems?.[0]?.Categories || [];
+                console.log()
                 const suggestion = await checkCard(categories);
                 
                 // Log place information
